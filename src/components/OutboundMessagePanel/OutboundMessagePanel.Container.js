@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Dialer, Manager, useFlexSelector } from "@twilio/flex-ui";
 import {
@@ -32,8 +33,12 @@ const isWorkerAvailable = (worker) => {
   const { taskrouter_offline_activity_sid } =
     Manager.getInstance().serviceConfiguration;
 
-  return worker.activity?.sid !== taskrouter_offline_activity_sid;
+  return worker.activity?.sid !== taskrouter_offline_activity_sid; 
 };
+
+const hasWorkerWhatsAppSkill = (worker) => {
+  return worker.attributes.routing.skills.includes('send_whatsapp')
+}
 
 const isToNumberValid = (toNumber) => {
   const phoneUtil = PhoneNumberUtil.getInstance();
@@ -52,9 +57,8 @@ const isToNumberValid = (toNumber) => {
 
 const OutboundMessagePanel = (props) => {
   // Local state
-  const [toNumber, setToNumber] = useState("+1");
-  const [messageBody, setMessageBody] = useState("");
-  const [messageType, setMessageType] = useState("sms");
+  const [toNumber, setToNumber] = useState("+521");
+  const [messageType, setMessageType] = useState("whatsapp");
 
   // Redux state
   const isOutboundMessagePanelOpen = useFlexSelector(
@@ -68,12 +72,11 @@ const OutboundMessagePanel = (props) => {
   let disableSend = true;
   const toNumberValid = isToNumberValid(toNumber);
 
-  if (toNumberValid && messageBody.length) disableSend = false;
+  if (toNumberValid && select_template.value !== "0") disableSend = false;
 
   // if we navigate away clear state
   if (!isOutboundMessagePanelOpen) {
-    if (toNumber !== "+1") setToNumber("+1");
-    if (messageBody.length) setMessageBody("");
+    if (toNumber !== "+521") setToNumber("+521");
     return null;
   }
 
@@ -84,7 +87,7 @@ const OutboundMessagePanel = (props) => {
 
   // Send clicked handler
   const handleSendClicked = (menuItemClicked) => {
-    onSendClickHandler(menuItemClicked, toNumber, messageType, messageBody);
+    onSendClickHandler(menuItemClicked, toNumber, messageType, templates[select_template.value]);
   };
 
   return (
@@ -95,7 +98,7 @@ const OutboundMessagePanel = (props) => {
         handleCloseClick={handleClose}
         title="Message"
       >
-        {isWorkerAvailable(worker) && (
+        {isWorkerAvailable(worker) && hasWorkerWhatsAppSkill(worker) && (
           <>
             <MessageTypeContainer theme={props.theme}>
               <RadioGroup
@@ -107,9 +110,6 @@ const OutboundMessagePanel = (props) => {
                 }}
                 orientation="horizontal"
               >
-                <Radio id="sms" value="sms" name="sms">
-                  SMS
-                </Radio>
                 <Radio id="whatsapp" value="whatsapp" name="whatsapp">
                   Whatsapp
                 </Radio>
@@ -136,44 +136,28 @@ const OutboundMessagePanel = (props) => {
                 onPhoneNumberChange={setToNumber}
                 hideActions
                 disabled={false}
-                defaultCountryAlpha2Code={"US"}
+                defaultCountryAlpha2Code={"MX"}
               />
             </DialerContainer>
             <MessageContainer theme={props.theme}>
-              <Label htmlFor="message-body">Message to send</Label>
-              <TextArea
-                theme={props.themes}
-                onChange={(event) => {
-                  setMessageBody(event.target.value);
-                }}
-                id="message-body"
-                name="message-body"
-                placeholder="Type message"
-                value={messageBody}
-              />
+              <Label htmlFor="select_template">Select a message template</Label>
+              <Select
+                id="select_template"
+              >
+                {templates.map((template,index) => (
+                  <Option value={index} key="select_template_{index}">
+                    {template || "Type message"}
+                  </Option>
+                ))}
+              </Select>
+              <HelpText html_for="select_template" variant="default">Selecciona una plantilla</HelpText>
+
               <SendMessageContainer theme={props.theme}>
                 <SendMessageMenu
                   disableSend={disableSend}
                   onClickHandler={handleSendClicked}
                 />
               </SendMessageContainer>
-
-              <Box backgroundColor="colorBackgroundBody" padding="space50">
-                <Separator orientation="horizontal" verticalSpacing="space50" />
-              </Box>
-
-              <Label htmlFor="select_template">Select a message template</Label>
-              <Select
-                id="select_template"
-                onChange={(e) => setMessageBody(e.target.value)}
-              >
-                {templates.map((template) => (
-                  <Option value={template} key={template}>
-                    {template || "Type message"}
-                  </Option>
-                ))}
-              </Select>
-              <HelpText html_for="select_template" variant="default"></HelpText>
             </MessageContainer>
           </>
         )}
@@ -181,6 +165,12 @@ const OutboundMessagePanel = (props) => {
           <OfflineContainer theme={props.theme}>
             <ErrorIcon />
             {`To send a message, please change your status from ${worker.activity.name}`}
+          </OfflineContainer>
+        )}
+        {isWorkerAvailable(worker) && !hasWorkerWhatsAppSkill(worker) && (
+          <OfflineContainer theme={props.theme}>
+            <ErrorIcon />
+            {`You do not have the right skills to send WhatsApp messages, please talk to your supervisor.`}
           </OfflineContainer>
         )}
       </StyledSidePanel>
